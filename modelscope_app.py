@@ -30,7 +30,7 @@ def sources():
 
 @app.route("/health")
 def health():
-    return jsonify({"status": "ok", "version": "2.0.0"})
+    return jsonify({"status": "ok", "version": "3.0.0"})
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))

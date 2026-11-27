@@ -15,6 +15,8 @@ pub fn card(app: &mut App, ui: &mut egui::Ui) {
             ui.label(egui::RichText::new("自愿打赏").strong());
             ui.add_space(2.0);
             ui.label(egui::RichText::new("本工具完全免费，功能不受任何限制。打赏纯属自愿，与下载速度、数据量、功能开关都没有关系。").small());
+            ui.add_space(2.0);
+            ui.label(egui::RichText::new("联系方式: xingguangyan0703@gmail.com").small().strong());
             ui.add_space(4.0);
             ui.horizontal(|ui| {
                 if ui.button("显示收款码").clicked() {

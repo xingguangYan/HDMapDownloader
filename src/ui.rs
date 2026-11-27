@@ -1,476 +1,357 @@
-//! UI implementation
-use crate::app::{App, Crs, ExportFormat, Selection, SelectMode, Tab};
+//! 界面布局：顶栏 + 左侧控制面板 + 中央地图
+use crate::app::App;
 use crate::donate;
-use crate::geo::resolution;
+use crate::geo::LngLat;
 use crate::mapview;
-use crate::sources::SourceEntry;
-use egui::Col;
-use egui::Color32;
-use egui::RichText;
-use egui::Stroke;
-use egui::StrokeKind;
-use egui::Vec2;
+use crate::sources::SourceKind;
+use eframe::egui;
 
-pub fn ui(app: &mut App, ui: &mut egui::Ui) {
-    egui::Panel::top("top").show(ui, |ui| { top_bar(app, ui); });
-    egui::Panel::bottom("bottom").show(ui, |ui| { bottom_bar(app, ui); });
-    egui::Panel::left("left").resizable(true).default_size(280.0).show(ui, |ui| { left_panel(app, ui); });
-    egui::Panel::right("right").resizable(true).default_size(300.0).show(ui, |ui| { right_panel(app, ui); });
-    egui::CentralPanel::default().show(ui, |ui| {
-        match app.tab {
-            Tab::Map => central_map(app, ui),
-            Tab::Sources => sources_panel(app, ui),
-            Tab::Download => download_panel(app, ui),
-            Tab::About => about_panel(app, ui),
-        }
-    });
-    process_license_modal(app, ui.ctx());
-    process_alipay_modal(app, ui.ctx());
-}
+pub const EMAIL: &str = "xingguangyan0703@gmail.com";
 
-fn top_bar(app: &mut App, ui: &mut egui::Ui) {
-    ui.horizontal(|ui| {
-        ui.heading("HD Map Downloader v2.0");
-        ui.separator();
-        ui.selectable_value(&mut app.tab, Tab::Map, "地图");
-        ui.selectable_value(&mut app.tab, Tab::Sources, "数据源");
-        ui.selectable_value(&mut app.tab, Tab::Download, "下载与导出");
-        ui.selectable_value(&mut app.tab, Tab::About, "关于");
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui.button("＋").on_hover_text("放大").clicked() {
-                mapview::zoom_in(&mut app.view);
-            }
-            if ui.button("－").on_hover_text("缩小").clicked() {
-                mapview::zoom_out(&mut app.view);
-            }
-            ui.label(format!("级别 {}", app.view.zoom));
+pub fn ui(app: &mut App, ctx: &egui::Context) {
+    egui::TopBottomPanel::top("top").show(ctx, |ui| {
+        ui.horizontal(|ui| {
+            ui.heading("HD 高清地图下载器 v3.0");
             ui.separator();
-            ui.label(format!(" {:.5}, {:.5}", app.view.center.lng, app.view.center.lat));
-        });
-    });
-}
-
-fn bottom_bar(app: &mut App, ui: &mut egui::Ui) {
-    ui.horizontal(|ui| {
-        ui.label(&app.status);
-        ui.separator();
-        if app.progress.running {
-            let total = app.progress.ok + app.progress.failed;
-            let frac = (total.max(1) as f32) / (1000.0); // approximate progress
-            ui.add(egui::ProgressBar::new(frac).desired_width(220.0).text(format!("OK {}/{}", total, total)));
-        }
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.label(RichText::new("数据源许可各异，请阅读").small().weak());
-        });
-    });
-}
-
-fn left_panel(app: &mut App, ui: &mut egui::Ui) {
-    ui.add_space(4.0);
-    ui.label(RichText::new("影像图层").strong());
-    let imagery: Vec<_> = app.sources.iter().filter(|s| s.layer == "imagery" && (s.kind == "xyz" || s.kind == "wmts")).cloned().collect();
-    for s in imagery {
-        let enabled = app.is_enabled(&s.id);
-        ui.horizontal(|ui| {
-            let mut on = enabled;
-            if ui.checkbox(&mut on, "").changed() {
-                app.source_enabled.insert(s.id.clone(), on);
-            }
-            let label = format!("{} [{}]", s.name, s.license_badge());
-            if ui.selectable_label(app.active_source == s.id, label).clicked() {
-                app.active_source = s.id.clone();
-                app.status = format!("已切换到 {}", s.name);
-            }
-        });
-        ui.add_space(2.0);
-    }
-    ui.separator();
-    ui.label(RichText::new("注记图层").strong());
-    let labels: Vec<_> = app.sources.iter().filter(|s| s.layer == "label").cloned().collect();
-    for s in labels {
-        let mut on = app.is_enabled(&s.id);
-        ui.horizontal(|ui| {
-            if ui.checkbox(&mut on, "").changed() {
-                app.source_enabled.insert(s.id.clone(), on);
-                if on {
-                    app.layer_labels = true;
-                    app.active_label_source = s.id.clone();
-                }
-            }
-            ui.label(&s.name);
-        });
-    }
-    ui.separator();
-    ui.label(RichText::new("选择方式").strong());
-    ui.horizontal(|ui| {
-        ui.selectable_value(&mut app.select_mode, SelectMode::Rect, "矩形");
-        ui.selectable_value(&mut app.select_mode, SelectMode::Polygon, "多边形");
-    });
-    if ui.button("清除选择").clicked() {
-        app.selection = Selection::new_rect(LngLat::new(0.0, 0.0), LngLat::new(0.0, 0.0));
-        app.selection = Selection::new_rect(LngLat::new(0.0, 0.0), LngLat::new(0.0, 0.0));
-    }
-}
-
-fn right_panel(app: &mut App, ui: &mut egui::Ui) {
-    ui.add_space(4.0);
-    ui.label(RichText::new("下载设置").strong());
-    ui.label("级别范围");
-    ui.horizontal(|ui| {
-        ui.add(egui::DragValue::new(&mut app.min_zoom_dl).range(0..=19).prefix("最小 "));
-        ui.add(egui::DragValue::new(&mut app.max_zoom_dl).range(0..=19).prefix("最大 "));
-    });
-    if app.max_zoom_dl < app.min_zoom_dl { app.max_zoom_dl = app.min_zoom_dl; }
-    ui.checkbox(&mut app.resume, "断点续传");
-    ui.horizontal(|ui| {
-        ui.label("并发");
-        ui.add(egui::DragValue::new(&mut app.concurrency).range(1..=32));
-    });
-    ui.add_space(6.0);
-    if ui.button("开始下载").clicked() {
-        app.start_download(ui.ctx());
-    }
-    if ui.button("取消").clicked() && app.progress.running {
-        app.cancel_download();
-    }
-    ui.separator();
-    ui.label(RichText::new("导出").strong());
-    ui.horizontal(|ui| {
-        ui.selectable_value(&mut app.export_format, ExportFormat::GeoTiff, "GeoTIFF");
-        ui.selectable_value(&mut app.export_format, ExportFormat::Mbtiles, "MBTiles");
-    });
-    ui.horizontal(|ui| {
-        ui.label("文件名");
-        ui.text_edit_singleline(&mut app.export_name);
-    });
-    if ui.button("导出已下载区域").clicked() {
-        do_export(app);
-    }
-    if let Some(p) = &app.last_export {
-        ui.label(RichText::new(format!("上次导出：{}", p)).small());
-    }
-}
-
-fn central_map(app: &mut App, ui: &mut egui::Ui) {
-    let size = ui.available_size();
-    let (resp, painter) = ui.allocate_painter(size, egui::Sense::click_and_drag());
-    let rect = resp.rect;
-    painter.rect_filled(rect, 0.0, mapview::missing_tile_color(ui.visuals()));
-    if app.layer_imagery {
-        if let Some(src) = app.active_imagery() {
-            draw_layer(app, ui, &painter, rect, &src);
-        }
-    }
-    if app.layer_labels {
-        if let Some(src) = app.sources.iter().find(|s| s.id == app.active_label_source) {
-            draw_layer(app, ui, &painter, rect, src);
-        }
-    }
-    draw_selection(app, &painter, rect);
-    if resp.dragged() {
-        let d = resp.drag_delta();
-        mapview::pan_by_pixels(&mut app.view, d.x, d.y);
-        app.cache.clear();
-    }
-    if resp.hovered() {
-        let scroll = ui.input(|i| i.smooth_scroll_delta.y);
-        if scroll.abs() > 0.1 {
-            if let Some(p) = ui.input(|i| i.pointer.hover_pos()) {
-                mapview::zoom_at(&mut app.view, rect, p, scroll);
-                app.cache.clear();
-            }
-        }
-    }
-    if resp.clicked() {
-        if let Some(p) = resp.interact_pointer_pos() {
-            let ll = mapview::lnglat_to_screen(&app.view, rect, p).unwrap_or(app.view.center);
-            match app.select_mode {
-                SelectMode::Polygon => {
-                    if let Selection::Polygon(pts) = &mut app.selection {
-                        pts.push(ll);
-                        app.status = format!("多边形：{} 个顶点", pts.len());
-                    } else {
-                        app.selection = Selection::new_rect(ll, ll);
-                    }
-                }
-                SelectMode::Rect => {
-                    if let Selection::Rect { a, b } = &mut app.selection {
-                        *b = ll;
-                    } else {
-                        app.selection = Selection::new_rect(ll, ll);
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-    if let Some(p) = ui.input(|i| i.pointer.hover_pos()) {
-        if rect.contains(p) {
-            let ll = mapview::screen_to_lnglat(&app.view, rect, p).unwrap_or(app.view.center);
-            painter.text(rect.left_bottom() + Vec2::new(8.0, -8.0), egui::Align2::LEFT_BOTTOM, format!("{:.5}, {:.5}", ll.lng, ll.lat), egui::FontId::monospace(12.0), Color32::from_white_alpha(220));
-        }
-    }
-    draw_scale_bar(&painter, rect, &app.view);
-}
-
-fn draw_layer(app: &App, ui: &mut egui::Ui, painter: &egui::Painter, rect: egui::Rect, src: &SourceEntry) {
-    let z = app.view.zoom;
-    if src.max_zoom != 0 && z > src.max_zoom {
-        painter.text(rect.center(), egui::Align2::CENTER_CENTER, format!("该源最高 {}", src.max_zoom), egui::FontId::proportional(14.0), Color32::LIGHT_GRAY);
-        return;
-    }
-    let tiles = mapview::visible_tiles(&app.view, rect, z);
-    for t in tiles.iter() {
-        let tex = app.cache.get_or_load(ui.ctx(), &app.cache_root, &src.id, t.z, t.x, t.y);
-        if let Some(tex_handle) = tex {
-            let r = t.screen;
-            painter.image(tex_handle.id(), r, egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), Color32::WHITE);
-        } else if t.z <= 4 {
-            let ok = crate::mapview::TileCache::ensure_demo_tile(&app.cache_root, &src.id, t.z, t.x, t.y);
-            if let Some(tex) = app.cache.get_or_load(ui.ctx(), &app.cache_root, &src.id, t.z, t.x, t.y) {
-                painter.image(tex.id(), t.screen, egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), Color32::WHITE);
-                continue;
-            }
-        }
-        let r = t.screen;
-        painter.rect_filled(r, 0.0, mapview::missing_tile_color(ui.visuals()));
-        painter.rect_stroke(r, 0.0, Stroke::new(0.5, Color32::from_rgb(150, 150, 150)), StrokeKind::Inside);
-    }
-}
-
-fn draw_selection(app: &App, painter: &egui::Painter, rect: egui::Rect) {
-    match &app.selection {
-        Selection::Rect { a, b } => {
-            let tl = mapview::lnglat_to_screen(&app.view, rect, *a).unwrap_or(egui::pos2(0.0, 0.0));
-            let br = mapview::lnglat_to_screen(&app.view, rect, *b).unwrap_or(egui::pos2(0.0, 0.0));
-            let r = egui::Rect::from_min_max(egui::pos2(tl.x.min(br.x), tl.y.min(br.y)), egui::pos2(tl.x.max(br.x), tl.y.max(br.y)));
-            painter.rect_stroke(r, 4.0, Stroke::new(2.0, Color32::YELLOW), StrokeKind::Inside);
-            painter.rect_filled(r, 4.0, Color32::from_rgba_unmultiplied(255, 255, 0, 30));
-        }
-        Selection::Polygon(pts) if pts.len() >= 2 => {
-            let screen: Vec<egui::Pos2> = pts.iter().map(|ll| mapview::lnglat_to_screen(&app.view, rect, *ll).unwrap_or(egui::pos2(0.0, 0.0))).collect();
-            for i in 1..screen.len() {
-                painter.line_segment([screen[i - 1], screen[i]], Stroke::new(2.0, Color32::YELLOW));
-            }
-            if pts.len() >= 3 {
-                painter.line_segment([screen[screen.len() - 1], screen[0]], Stroke::new(2.0, Color32::YELLOW));
-            }
-        }
-        _ => {}
-    }
-}
-
-fn draw_scale_bar(painter: &egui::Painter, rect: egui::Rect, view: &crate::mapview::MapView) {
-    let y = rect.bottom() - 20.0;
-    let x0 = rect.left() + 8.0;
-    let km_per_px = resolution(view.zoom, view.center.lat) / 1000.0;
-    let bar_px = 100.0_f32;
-    let bar_km = bar_px * km_per_px as f32;
-    let bar_km_round = (bar_km / 5.0).ceil() * 5.0;
-    let bar_px_round = (bar_km_round / bar_km * bar_px) as f32;
-    let x1 = x0 + bar_px_round;
-    painter.line_segment([egui::pos2(x0, y), egui::pos2(x1, y)], Stroke::new(2.0, Color32::WHITE));
-    painter.text(egui::pos2(x0, y - 4.0), egui::Align2::LEFT_BOTTOM, format!("{:.0} km", bar_km_round), egui::FontId::monospace(10.0), Color32::WHITE);
-}
-
-fn sources_panel(app: &mut App, ui: &mut egui::Ui) {
-    ui.heading("数据源列表");
-    ui.add_space(4.0);
-    egui::ScrollArea::vertical().show(ui, |ui| {
-        for s in &app.sources {
-            let enabled = app.is_enabled(&s.id);
-            ui.horizontal(|ui| {
-                let mut on = enabled;
-                if ui.checkbox(&mut on, "").changed() {
-                    app.source_enabled.insert(s.id.clone(), on);
-                }
-                ui.vertical(|ui| {
-                    ui.label(RichText::new(&s.name).strong());
-                    ui.label(RichText::new(format!("{} | {} | z{}-{} | {}", s.layer, s.kind, s.min_zoom, s.max_zoom, s.license_badge())).small());
-                    ui.label(RichText::new(&s.license_note).small().weak());
-                });
+            ui.label(format!("当前源: {}", app.active().map(|s| s.name).unwrap_or("(未选择)")));
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.label(egui::RichText::new(format!("联系方式: {EMAIL}")).small().weak());
             });
-            ui.add_space(4.0);
-        }
+        });
     });
+
+    egui::SidePanel::left("side")
+        .default_width(340.0)
+        .width_range(280.0..=440.0)
+        .resizable(true)
+        .show(ctx, |ui| {
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                source_section(app, ui);
+                time_section(app, ui);
+                select_section(app, ui);
+                download_section(app, ui, ctx);
+                portals_section(app, ui);
+                donate::card(app, ui);
+                ui.add_space(6.0);
+                ui.label(egui::RichText::new(format!("底部联系: {EMAIL}")).small().weak());
+            });
+        });
+
+    egui::CentralPanel::default().show(ctx, |ui| {
+        map_panel(app, ui, ctx);
+    });
+
+    if app.show_alipay {
+        qr_window(app, ctx);
+    }
 }
 
-fn download_panel(app: &mut App, ui: &mut egui::Ui) {
-    ui.heading("下载队列与进度");
-    if app.progress.running {
-        ui.label(format!("进行中：{} / {} (成功 {}, 失败 {})", app.progress.ok + app.progress.failed, 1000, app.progress.ok, app.progress.failed));
-        for log in app.progress.log.iter().rev().take(10) {
-            ui.label(RichText::new(log).small());
+fn source_section(app: &mut App, ui: &mut egui::Ui) {
+    ui.heading("数据源");
+    let items: Vec<(String, String, String, bool)> = app
+        .sources
+        .iter()
+        .map(|s| (s.id.to_string(), s.name.to_string(), s.group.to_string(), s.requires_key))
+        .collect();
+    let selected_name = app
+        .active()
+        .map(|s| s.name.to_string())
+        .unwrap_or_else(|| "(未选择)".to_string());
+    let prev = app.active_source.clone();
+    egui::ComboBox::from_label("选择地图源")
+        .selected_text(selected_name)
+        .show_ui(ui, |ui| {
+            for group in ["基础底图", "卫星影像", "时间序列", "需Key源", "数据门户"] {
+                let entries: Vec<&(String, String, String, bool)> = items.iter().filter(|i| i.2 == group).collect();
+                if entries.is_empty() {
+                    continue;
+                }
+                ui.label(egui::RichText::new(group).strong());
+                for (id, name, _, needs_key) in entries {
+                    let label = if *needs_key { format!("{name}（需Key）") } else { name.clone() };
+                    ui.selectable_value(&mut app.active_source, id.clone(), label);
+                }
+            }
+        });
+    if app.active_source != prev {
+        app.on_source_changed();
+    }
+
+    // 先把展示信息复制出来，避免和 &mut app.api_key 的可变借用冲突
+    let info = app.active().map(|s| {
+        let license = format!("许可: {} | {}", s.license, s.note);
+        let homepage = if !s.homepage.is_empty() && s.kind != SourceKind::Portal {
+            Some(s.homepage.to_string())
+        } else {
+            None
+        };
+        (license, homepage, s.requires_key)
+    });
+    if let Some((license, homepage, needs_key)) = info {
+        ui.add_space(2.0);
+        ui.label(egui::RichText::new(license).small().weak());
+        if let Some(h) = &homepage {
+            ui.hyperlink_to("数据源主页", h);
+        }
+        if needs_key {
+            ui.add_space(2.0);
+            ui.label(egui::RichText::new("密钥（tk / API Key）:").small());
+            ui.add(egui::TextEdit::singleline(&mut app.api_key).hint_text("粘贴你的 tk / API Key"));
+            if let Some(h) = &homepage {
+                ui.hyperlink_to("申请地址", h);
+            }
+        }
+    }
+}
+
+fn time_section(app: &mut App, ui: &mut egui::Ui) {
+    ui.add_space(6.0);
+    ui.heading("影像时间（时间序列源可用）");
+    let has_time = app.active().map(|s| s.time_support).unwrap_or(false);
+    ui.add_enabled(has_time, egui::TextEdit::singleline(&mut app.date).hint_text("2024-06-01"));
+    if has_time {
+        ui.label(egui::RichText::new("格式 YYYY-MM-DD，MODIS / Landsat / Sentinel-2(HLS) 按日期加载").small().weak());
+    } else {
+        ui.label(egui::RichText::new("当前源不支持时间参数").small().weak());
+    }
+}
+
+fn select_section(app: &mut App, ui: &mut egui::Ui) {
+    ui.add_space(6.0);
+    ui.heading("框选区域");
+    let label = if app.select_mode { "关闭框选模式" } else { "开启框选模式（在地图上拖矩形）" };
+    if ui.button(label).clicked() {
+        app.select_mode = !app.select_mode;
+    }
+    if let Some((min, max)) = app.sel_bounds {
+        let (w, s, e, n) = (
+            min.lng.min(max.lng), min.lat.min(max.lat),
+            min.lng.max(max.lng), min.lat.max(max.lat),
+        );
+        ui.label(format!("西 {w:.4}  南 {s:.4}"));
+        ui.label(format!("东 {e:.4}  北 {n:.4}"));
+        if ui.button("清除选区").clicked() {
+            app.sel_bounds = None;
         }
     } else {
-        ui.label("当前无下载任务");
+        ui.label(egui::RichText::new("尚未框选").small().weak());
     }
 }
 
-fn about_panel(app: &mut App, ui: &mut egui::Ui) {
-    ui.heading("关于");
-    ui.add_space(8.0);
-    ui.label("HD Map Downloader v2.0");
-    ui.label("Rust + eframe/egui");
-    ui.add_space(8.0);
-    ui.separator();
-    ui.add_space(4.0);
-    ui.label("• 使用公开免费的瓦片源");
-    ui.label("• 遵守各数据源的许可");
-    ui.label("• 打赏完全自愿、不联网、不记录");
-    ui.add_space(8.0);
-    donate::card(app, ui);
-    ui.add_space(8.0);
-    if ui.button("打赏作者").clicked() {
-        app.show_alipay = true;
-        let ctx = ui.ctx().clone();
-        donate::load_qr(app, &ctx);
+fn download_section(app: &mut App, ui: &mut egui::Ui, ctx: &egui::Context) {
+    ui.add_space(6.0);
+    ui.heading("下载");
+    ui.horizontal(|ui| {
+        ui.label("缩放级别:");
+        ui.add(egui::Slider::new(&mut app.min_zoom_dl, 0..=22).text("最小"));
+        ui.add(egui::Slider::new(&mut app.max_zoom_dl, 0..=22).text("最大"));
+    });
+    if app.max_zoom_dl < app.min_zoom_dl {
+        app.max_zoom_dl = app.min_zoom_dl;
     }
+    if let Some(s) = app.active() {
+        if s.max_zoom != 0 && app.max_zoom_dl > s.max_zoom {
+            ui.label(egui::RichText::new(format!("提示：该源最大缩放为 {}", s.max_zoom)).small().weak());
+        }
+    }
+    ui.label(format!("预计瓦片数: {}", app.estimate()));
+
+    ui.horizontal(|ui| {
+        if ui.add_enabled(!app.progress.running, egui::Button::new("开始下载")).clicked() {
+            app.start_download(ctx);
+        }
+        if app.progress.running && ui.button("取消").clicked() {
+            app.cancel_download();
+        }
+    });
+
+    let p = &app.progress;
+    if p.running || p.ok + p.failed + p.skipped > 0 {
+        let done = p.ok + p.failed + p.skipped;
+        let frac = if p.total > 0 { done as f32 / p.total as f32 } else { 0.0 };
+        ui.add(egui::ProgressBar::new(frac).show_percentage());
+        ui.label(format!("成功 {}  失败 {}  跳过 {}", p.ok, p.failed, p.skipped));
+    }
+
+    ui.label(egui::RichText::new(&app.status).small());
+
+    egui::ScrollArea::vertical()
+        .max_height(130.0)
+        .show(ui, |ui| {
+            for line in &app.progress.log {
+                ui.label(egui::RichText::new(line).small().weak());
+            }
+        });
+
     ui.add_space(4.0);
-    ui.label("源码与问题反馈：见项目仓库");
+    ui.horizontal(|ui| {
+        if ui.button("导出已下载瓦片为 ZIP").clicked() {
+            match app.export_zip() {
+                Ok(path) => {
+                    app.status = format!("已导出 ZIP: {}", path.display());
+                    app.last_zip = Some(path.display().to_string());
+                }
+                Err(e) => app.status = format!("导出失败: {e}"),
+            }
+        }
+        if let Some(p) = app.last_zip.clone() {
+            if ui.button("打开所在文件夹").clicked() {
+                crate::export::open_in_explorer(std::path::Path::new(&p));
+            }
+        }
+    });
 }
 
-pub fn do_export(app: &mut App) {
-    let format_label = app.export_format.label().to_string();
-    app.status = format!("正在导出 {}...", format_label);
-    let Some((min, max)) = app.selection.bounds() else {
-        app.status = "请先选择区域".into();
-        return;
-    };
-    let Some(src) = app.active_imagery() else {
-        app.status = "未选择数据源".into();
-        return;
-    };
-    let z = app.max_zoom_dl.min(19);
-    let (x0, y0, x1, y1) = crate::download::tiles_in_rect(min.lng, min.lat, max.lng, max.lat, z);
-    let count = (x1 - x0 + 1) as usize * (y1 - y0 + 1) as usize;
-    if count == 0 {
-        app.status = " Selec 区域内没有瓦片".into();
-        return;
+fn portals_section(app: &mut App, ui: &mut egui::Ui) {
+    ui.add_space(6.0);
+    ui.heading("免费数据门户（需注册）");
+    let portals: Vec<(String, String, String)> = app
+        .sources
+        .iter()
+        .filter(|s| s.kind == SourceKind::Portal)
+        .map(|s| (s.name.to_string(), s.note.to_string(), s.homepage.to_string()))
+        .collect();
+    for (name, note, url) in portals {
+        ui.horizontal(|ui| {
+            ui.label(&name);
+            ui.hyperlink_to("打开主页", &url);
+        });
+        ui.label(egui::RichText::new(&note).small().weak());
     }
-    if count > 4096 {
-        app.status = format!("导出范围过大（{} 块瓦片）", count);
-        return;
+}
+
+fn qr_window(app: &mut App, ctx: &egui::Context) {
+    let mut open = app.show_alipay;
+    egui::Window::new("收款码 · 请我喝杯咖啡")
+        .open(&mut open)
+        .resizable(false)
+        .show(ctx, |ui| {
+            donate::qr(app, ui);
+            ui.add_space(2.0);
+            ui.label(egui::RichText::new(format!("联系: {EMAIL}")).small());
+        });
+    app.show_alipay = open;
+}
+
+fn map_panel(app: &mut App, ui: &mut egui::Ui, ctx: &egui::Context) {
+    let rect = ui.available_rect_before_wrap();
+    let response = ui.interact(rect, ui.id().with("map"), egui::Sense::drag());
+    let painter = ui.painter_at(rect);
+
+    // 深色底
+    painter.rect_filled(rect, 0.0, egui::Color32::from_rgb(20, 24, 30));
+
+    // 滚轮缩放
+    let scroll = ui.input(|i| i.smooth_scroll_delta.y);
+    if scroll > 0.0 && app.view.zoom < 22 {
+        app.view.zoom += 1;
+        app.clear_fetching();
+    } else if scroll < 0.0 && app.view.zoom > 0 {
+        app.view.zoom -= 1;
+        app.clear_fetching();
     }
-    let tw = ((x1 - x0 + 1) * 256) as usize;
-    let th = ((y1 - y0 + 1) * 256) as usize;
-    let mut canvas = image::RgbImage::new(tw as u32, th as u32);
-    let mut found = 0;
+
+    // 拖动：框选 or 平移
+    let view = app.view;
+    if response.drag_started() {
+        app.set_drag_start(response.interact_pointer_pos());
+    }
+    if response.dragged() && !app.select_mode {
+        let d = response.drag_delta();
+        if d != egui::Vec2::ZERO {
+            let center = rect.center();
+            let target = center - d;
+            let ll = mapview::screen_to_lnglat(&app.view, &rect, target);
+            app.view.center = ll.clamp();
+        }
+    }
+
+    // 后台抓取可见瓦片
+    app.fetch_visible(ctx, &rect);
+
+    // 绘制瓦片
+    let (x0, y0, x1, y1) = mapview::visible_tiles(&view, &rect);
     for ty in y0..=y1 {
         for tx in x0..=x1 {
-            let path = crate::download::tile_path(&app.cache_root, &src.id, z, tx, ty);
-            if let Ok(bytes) = std::fs::read(&path) {
-                if let Ok(img) = image::load_from_memory(&bytes) {
-                    let rgb = img.to_rgb8();
-                    let ox = ((tx - x0) * 256) as u32;
-                    let oy = ((ty - y0) * 256) as u32;
-                    image::imageops::replace(&mut canvas, &rgb, ox as i64, oy as i64);
-                    found += 1;
-                }
-            }
-        }
-    }
-    if found == 0 {
-        app.status = "没有找到已下载的瓦片".into();
-        return;
-    }
-    let raw = canvas.into_raw();
-    let out_dir = if app.export_dir.trim().is_empty() {
-        app.cache_root.clone()
-    } else {
-        std::path::PathBuf::from(&app.export_dir)
-    };
-    let fname = if app.export_name.trim().is_empty() { "export" } else { app.export_name.trim() };
-    let result = match app.export_format {
-        ExportFormat::GeoTiff => {
-            let out = out_dir.join(format!("{}.tif", fname));
-            let nw = crate::geo::tile_northwest(x0, y0, z);
-            let se = crate::geo::tile_northwest(x1 + 1, y1 + 1, z);
-            let spec = crate::export::GeoTiffSpec {
-                width: tw as u32,
-                height: th as u32,
-                origin_x: nw.lng,
-                origin_y: nw.lat,
-                scale_x: (se.lng - nw.lng) / tw as f64,
-                scale_y: (nw.lat - se.lat) / th as f64,
-                epsg: Some(match app.crs {
-                    app::Crs::Wgs84 => 4326,
-                    app::Crs::WebMercator => 3857,
-                    app::Crs::Cgcs2000Geo => 4490,
-                    app::Crs::Cgcs2000Gk => 4490,
-                }),
-                description: format!("导出自 HD Map Downloader - {}", src.name),
-            };
-            crate::export::write_geotiff(&out, &spec, &raw).map(|_| out.display().to_string())
-        }
-        ExportFormat::Mbtiles => {
-            let out = out_dir.join(format!("{}.mbtiles", fname));
-            let mut tiles = vec![];
-            for ty in y0..=y1 {
-                for tx in x0..=x1 {
-                    let path = crate::download::tile_path(&app.cache_root, &src.id, z, tx, ty);
-                    if let Ok(b) = std::fs::read(&path) {
-                        tiles.push(crate::export::MbtilesTile { z, x: tx, y: ty, png: b });
-                    }
-                }
-            }
-            let mut meta = std::collections::BTreeMap::new();
-            meta.insert("name".into(), src.name.clone());
-            meta.insert("description".into(), "导出自 HD Map Downloader".into());
-            meta.insert("bounds".into(), format!("{},{},{},{}", min.lng, min.lat, max.lng, max.lat));
-            meta.insert("attribution".into(), format!("数据源：{}", src.name));
-            crate::export::write_mbtiles(&out, &tiles, &meta).map(|_| out.display().to_string())
-        }
-    };
-    match result {
-        Ok(p) => {
-            app.last_export = Some(p.clone());
-            app.status = format!("已导出 {} ({:?} 块瓦片)", p, found);
-        }
-        Err(e) => {
-            app.status = format!("导出失败: {}", e);
-        }
-    }
-}
-
-fn process_license_modal(app: &mut App, ctx: &egui::Context) {
-    if let Some(id) = app.show_license_for.take() {
-        if let Some(src) = app.sources.iter().find(|s| s.id == id) {
-            app.license_text = format!("\n{}\n\n许可：{}\n说明：{}\n官网：{}", src.name, src.license, src.license_note, src.url(0,0,0));
-        }
-    }
-    if !app.license_text.is_empty() {
-        let mut text = std::mem::take(&mut app.license_text);
-        egui::Window::new("许可信息").show(ctx, |ui| {
-            ui.add(egui::TextEdit::multiline(&mut text).desired_width(500.0).desired_rows(10).interactive(false));
-            if ui.button("关闭").clicked() {
-                app.show_license_open = false;
-            }
-        });
-        if !app.show_license_open {
-            app.license_text.clear();
-        } else {
-            app.license_text = text;
-        }
-    }
-}
-
-fn process_alipay_modal(app: &mut App, ctx: &egui::Context) {
-    if app.show_alipay {
-        let mut closed = false;
-        let tex = app.alipay_texture.as_ref().map(|t| (t.id(), t.size_vec2()));
-        egui::Window::new("打赏作者（纯自愿）").open(&mut app.show_alipay).show(ctx, |ui| {
-            ui.label("感谢支持！本工具完全免费开源。");
-            ui.add_space(4.0);
-            if let Some((id, size)) = tex {
-                ui.image((id, size));
+            let sr = mapview::tile_screen_rect(&view, &rect, tx, ty);
+            if let Some(tex) = app.get_tile_texture(ctx, view.zoom, tx, ty) {
+                painter.image(
+                    tex.id(),
+                    sr,
+                    egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                    egui::Color32::WHITE,
+                );
             } else {
-                ui.label(RichText::new("[未找到收款码图片]").weak());
+                painter.rect_filled(sr, 0.0, egui::Color32::from_rgb(28, 34, 42));
             }
-            if ui.button("关闭").clicked() { closed = true; }
-        });
-        if closed {
-            app.show_alipay = false;
         }
     }
+
+    // 已确认选区
+    if let Some((a, b)) = app.sel_bounds {
+        let p1 = mapview::lnglat_to_screen(&view, &rect, a);
+        let p2 = mapview::lnglat_to_screen(&view, &rect, b);
+        let r = egui::Rect::from_two_pos(p1, p2);
+        painter.rect_filled(r, 0.0, egui::Color32::from_rgba_unmultiplied(80, 200, 255, 24));
+        painter.rect_stroke(r, 0.0, egui::Stroke::new(2.0_f32, egui::Color32::from_rgb(80, 200, 255)), egui::StrokeKind::Outside);
+    }
+
+    // 框选过程中的矩形
+    if app.select_mode && response.dragged() {
+        if let (Some(start), Some(cur)) = (app.drag_start(), response.interact_pointer_pos()) {
+            let r = egui::Rect::from_two_pos(start, cur);
+            painter.rect_filled(r, 0.0, egui::Color32::from_rgba_unmultiplied(255, 180, 60, 28));
+            painter.rect_stroke(r, 0.0, egui::Stroke::new(1.5_f32, egui::Color32::from_rgb(255, 180, 60)), egui::StrokeKind::Outside);
+            let a = mapview::screen_to_lnglat(&view, &rect, r.min);
+            let b = mapview::screen_to_lnglat(&view, &rect, r.max);
+            let (w, s, e, n) = (a.lng.min(b.lng), a.lat.min(b.lat), a.lng.max(b.lng), a.lat.max(b.lat));
+            painter.text(
+                egui::pos2(r.left() + 6.0, r.top() + 4.0),
+                egui::Align2::LEFT_TOP,
+                format!("西 {w:.3} 南 {s:.3}  东 {e:.3} 北 {n:.3}"),
+                egui::FontId::proportional(12.0),
+                egui::Color32::from_rgb(255, 220, 150),
+            );
+        }
+    }
+    // 松手后确认选区
+    if app.select_mode && response.drag_stopped() {
+        if let (Some(start), Some(cur)) = (app.drag_start(), response.interact_pointer_pos()) {
+            let a = mapview::screen_to_lnglat(&view, &rect, start);
+            let b = mapview::screen_to_lnglat(&view, &rect, cur);
+            if (a.lng - b.lng).abs() > 1e-9 && (a.lat - b.lat).abs() > 1e-9 {
+                app.sel_bounds = Some((LngLat::new(a.lng, a.lat), LngLat::new(b.lng, b.lat)));
+                app.status = "已框选区域，设置缩放范围后点「开始下载」".to_string();
+            }
+        }
+        app.set_drag_start(None);
+    }
+
+    // 鼠标坐标与提示
+    if let Some(p) = response.hover_pos() {
+        let ll = mapview::screen_to_lnglat(&view, &rect, p);
+        let txt = format!("{:.5}°N  {:.5}°E   缩放 z{}", ll.lat, ll.lng, view.zoom);
+        painter.text(
+            egui::pos2(rect.left() + 8.0, rect.bottom() - 8.0),
+            egui::Align2::LEFT_BOTTOM,
+            txt,
+            egui::FontId::proportional(12.0),
+            egui::Color32::from_rgb(200, 210, 220),
+        );
+    }
+    let hint = if app.select_mode {
+        "框选模式：拖出矩形选择下载区域（滚轮缩放）"
+    } else {
+        "拖动平移地图 · 滚轮缩放 · 开启左侧「框选模式」后拖出下载区域"
+    };
+    painter.text(
+        egui::pos2(rect.left() + 8.0, rect.top() + 8.0),
+        egui::Align2::LEFT_TOP,
+        hint,
+        egui::FontId::proportional(12.0),
+        egui::Color32::from_rgb(150, 165, 180),
+    );
+
+    // 给 map 区域一个边框，视觉上与侧栏分隔
+    painter.rect_stroke(rect, 0.0, egui::Stroke::new(1.0_f32, egui::Color32::from_rgb(45, 52, 62)), egui::StrokeKind::Inside);
 }

@@ -1,10 +1,10 @@
 [package]
 name = "hdmapdl"
-version = "1.0.0"
+version = "3.0.0"
 authors = ["xingguangYan"]
 edition = "2021"
 license = "MIT"
-description = "HD Map Downloader with multiple free tile sources"
+description = "HD Map Downloader v3.0 - 多源高清地图瓦片下载器"
 repository = ""
 
 [dependencies]
@@ -17,14 +17,6 @@ ureq = "2.10"
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-serde_yaml = "0.9"
-
-# Error handling
-thiserror = "1.0"
-
-# UUID
-uuid = { version = "1.12", features = ["v4"] }
 
 # Image processing
 image = "0.25"
@@ -32,15 +24,12 @@ image = "0.25"
 # Compression for export
 zip = "1.2"
 
-# Config (user directories)
-directories = "6.0"
-
 # Threading
 crossbeam-channel = "0.5"
 
 [profile.release]
 opt-level = 3
-lto = true
+lto = false
 debug = false
 
 [[bin]]

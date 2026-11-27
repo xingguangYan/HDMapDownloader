@@ -4,6 +4,7 @@
 
 # Build artifacts
 **/*.exe
+!HDMapDownloader.exe
 **/*.dll
 **/*.obj
 **/*.pdb
@@ -30,4 +31,6 @@ HDMapDownloader.c6
 outdir/
 drive_export/
 mapdl_cache/
+hdmap_cache/
+exports/
 qr_base64.txt

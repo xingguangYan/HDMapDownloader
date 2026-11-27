@@ -1,13 +1,14 @@
+//! 瓦片下载引擎：并发抓取、失败重试、本地缓存
+use crossbeam_channel::{Receiver, Sender};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
-use crossbeam_channel::{Receiver, Sender};
 
 pub const DEFAULT_CONCURRENCY: usize = 4;
 pub const DEFAULT_TIMEOUT_SECS: u64 = 30;
 pub const DEFAULT_RETRIES: u32 = 3;
-pub const USER_AGENT: &str = "HDMapDownloader/2.0 (Rust)";
+pub const USER_AGENT: &str = "HDMapDownloader/3.0 (Rust)";
 
 #[derive(Clone, Debug)]
 pub struct TileJob {
@@ -25,6 +26,9 @@ pub enum DlEvent {
     Finished { ok: usize, failed: usize, skipped: usize },
 }
 
+pub type EventRx = Receiver<DlEvent>;
+pub type EventTx = Sender<DlEvent>;
+
 pub fn tile_path(root: &Path, layer: &str, z: u8, x: i32, y: i32) -> PathBuf {
     root.join("tiles").join(layer).join(z.to_string()).join(x.to_string()).join(format!("{y}.png"))
 }
@@ -41,40 +45,43 @@ pub fn save_cached(root: &Path, layer: &str, z: u8, x: i32, y: i32, bytes: &[u8]
     std::fs::write(p, bytes)
 }
 
+/// 只接受真正的图片字节（PNG/JPEG/GIF/WEBP），挡掉 403/404 的 HTML 错误页
 pub fn looks_like_image(b: &[u8]) -> bool {
-    b.starts_with(&[0x89, b'P', b'N', b'G']) ||
-    b.starts_with(&[0xFF, 0xD8]) ||
-    b.starts_with(b"GIF8") ||
-    (b.len() > 12 && &b[0..4] == b"RIFF" && &b[8..12] == b"WEBP")
+    b.starts_with(&[0x89, b'P', b'N', b'G'])
+        || b.starts_with(&[0xFF, 0xD8])
+        || b.starts_with(b"GIF8")
+        || (b.len() > 12 && &b[0..4] == b"RIFF" && &b[8..12] == b"WEBP")
 }
 
 pub fn fetch_tile(url: &str, timeout_secs: u64, retries: u32) -> Result<Vec<u8>, String> {
+    let agent = ureq::AgentBuilder::new()
+        .timeout(std::time::Duration::from_secs(timeout_secs))
+        .user_agent(USER_AGENT)
+        .build();
     let mut last = String::new();
     for attempt in 0..=retries {
         if attempt > 0 {
-            std::thread::sleep(std::time::Duration::from_millis(200 * attempt as u64));
+            std::thread::sleep(std::time::Duration::from_millis(300 * attempt as u64));
         }
-        match ureq::Agent::config_builder()
-            .timeout_global(Some(std::time::Duration::from_secs(timeout_secs)))
-            .user_agent(USER_AGENT)
-            .build()
-            .new_agent()
-            .get(url)
-            .call()
-        {
+        let resp = agent.get(url).set("Referer", "https://www.openstreetmap.org/").call();
+        match resp {
             Ok(resp) => {
                 let status = resp.status();
-                if status.as_u16() >= 400 {
-                    last = format!("HTTP {}", status.as_u16());
+                if status >= 400 {
+                    last = format!("HTTP {}", status);
                     continue;
                 }
                 let mut buf = Vec::new();
-                match resp.into_body().into_reader().read_to_end(&mut buf) {
+                match resp.into_reader().read_to_end(&mut buf) {
                     Ok(_) => {
                         if looks_like_image(&buf) {
                             return Ok(buf);
                         }
-                        last = format!("响应不是图片（{} 字节）", buf.len());
+                        last = if buf.is_empty() {
+                            "空响应".to_string()
+                        } else {
+                            format!("响应不是图片（{} 字节）", buf.len())
+                        };
                     }
                     Err(e) => last = format!("读取失败: {e}"),
                 }
@@ -83,6 +90,21 @@ pub fn fetch_tile(url: &str, timeout_secs: u64, retries: u32) -> Result<Vec<u8>,
         }
     }
     Err(last)
+}
+
+/// 框选经纬度范围 -> 该缩放级别下的瓦片行列范围
+pub fn tiles_in_rect(min_lng: f64, min_lat: f64, max_lng: f64, max_lat: f64, z: u8) -> (i32, i32, i32, i32) {
+    let ll_min = crate::geo::LngLat::new(min_lng, min_lat).clamp();
+    let ll_max = crate::geo::LngLat::new(max_lng, max_lat).clamp();
+    let (x0, y0) = crate::geo::tile_of(ll_min, z);
+    let (x1, y1) = crate::geo::tile_of(ll_max, z);
+    let n = (1i32 << z.min(22)) - 1;
+    (
+        x0.min(x1).max(0),
+        y0.min(y1).max(0),
+        x0.max(x1).min(n),
+        y0.max(y1).min(n),
+    )
 }
 
 pub fn run_batch(
@@ -135,10 +157,16 @@ pub fn run_batch(
                     Ok(bytes) => {
                         if let Err(e) = save_cached(&root, &layer, job.z, job.x, job.y, &bytes) {
                             failed.fetch_add(1, Ordering::Relaxed);
-                            let _ = ev.send(DlEvent::Failed { z: job.z, x: job.x, y: job.y, reason: format!("写入失败: {e}") });
+                            let _ = ev.send(DlEvent::Failed {
+                                z: job.z, x: job.x, y: job.y,
+                                reason: format!("写入失败: {e}"),
+                            });
                         } else {
                             ok.fetch_add(1, Ordering::Relaxed);
-                            let _ = ev.send(DlEvent::Done { z: job.z, x: job.x, y: job.y, bytes: bytes.len() as u64 });
+                            let _ = ev.send(DlEvent::Done {
+                                z: job.z, x: job.x, y: job.y,
+                                bytes: bytes.len() as u64,
+                            });
                         }
                     }
                     Err(reason) => {
@@ -157,54 +185,14 @@ pub fn run_batch(
     });
 }
 
-pub fn tiles_in_rect(min_lng: f64, min_lat: f64, max_lng: f64, max_lat: f64, z: u8) -> (i32, i32, i32, i32) {
-    let ll_min = crate::geo::LngLat::new(min_lng, min_lat).clamp();
-    let ll_max = crate::geo::LngLat::new(max_lng, max_lat).clamp();
-    let (x0, y0) = crate::geo::tile_of(ll_min, z);
-    let (x1, y1) = crate::geo::tile_of(ll_max, z);
-    let n = (1i32 << z) - 1;
-    (x0.min(x1), y0.min(y1), x0.max(x1), y0.max(y1)).with_bounds(n)
-}
-
-trait ClampTiles {
-    fn with_bounds(self, max: i32) -> Self;
-}
-
-impl ClampTiles for (i32, i32, i32, i32) {
-    fn with_bounds(self, max: i32) -> Self {
-        (self.0.clamp(0, max), self.1.clamp(0, max), self.2.clamp(0, max), self.3.clamp(0, max))
-    }
-}
-
-pub fn point_in_polygon(p: (f64, f64), poly: &[(f64, f64)]) -> bool {
-    let mut inside = false;
-    let n = poly.len();
-    if n < 3 { return false; }
-    let mut j = n - 1;
-    for i in 0..n {
-        let (xi, yi) = poly[i];
-        let (xj, yj) = poly[j];
-        if ((yi > p.1) != (yj > p.1)) && (p.0 < (xj - xi) * (p.1 - yi) / (yj - yi) + xi) {
-            inside = !inside;
-        }
-        j = i;
-    }
-    inside
-}
-
-pub type EventRx = Receiver<DlEvent>;
-pub type EventTx = Sender<DlEvent>;
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn image_sniff() {
         assert!(looks_like_image(&[0x89, b'P', b'N', b'G', 1, 2]));
         assert!(!looks_like_image(b"<html>denied</html>"));
     }
-
     #[test]
     fn rect_tiles_cover_beijing() {
         let (x0, y0, x1, y1) = tiles_in_rect(116.2, 39.8, 116.5, 40.0, 12);
