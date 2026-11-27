@@ -4,8 +4,9 @@
 
 免费多源高清地图瓦片下载器：聚合 Esri、OpenStreetMap、CartoDB、NASA GIBS（Blue Marble / MODIS / VIIRS / Landsat HLS / Sentinel-2 HLS）、EOX Sentinel-2 无云镶嵌、天地图、Planet NICFI 等公开数据源，自带框选下载、时间范围、密钥管理、ZIP 导出。
 
-## 主要功能
+**在线使用（免安装）**：<https://xingguangyan.github.io/HDMapDownloader/>
 
+## 主要功能
 - 框选下载：开启「框选模式」在地图上拖出矩形，自由设定缩放级别范围，自动并发下载瓦片
 - 时间范围：MODIS / VIIRS / Landsat 8/9 / Sentinel-2 等时间序列源可指定影像日期（GIBS WMS TIME 参数）
 - 密钥管理：天地图 tk、Planet API Key 直接在界面填写，即时启用；免Key源开箱即用
