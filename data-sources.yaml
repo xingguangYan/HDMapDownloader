@@ -1,0 +1,147 @@
+version: 1
+note: |-
+  HDMapDownloader 数据源清单 v2.0
+sources:
+  - id: google_sat
+    name: Google 卫星影像 (Google Maps)
+    type: xyz
+    url_template: https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}
+    resolution: 0.5-15m
+    license: Google Maps Terms of Service
+    license_note: 需要访问 Google，可能受地域限制。
+    requires_key: false
+    enabled_by_default: false
+    verified_clean_license: true
+    min_zoom: 0
+    max_zoom: 22
+    layer: imagery
+    availability: public
+    homepage: https://www.google.com/maps
+
+  - id: esri_world
+    name: Esri World Imagery
+    type: xyz
+    url_template: https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}
+    resolution: 0.3-1m
+    license: Esri Terms of Service
+    license_note: 全球高质量影像，商业使用建议联系授权
+    requires_key: false
+    enabled_by_default: true
+    verified_clean_license: true
+    min_zoom: 0
+    max_zoom: 19
+    layer: imagery
+    availability: public
+    homepage: https://www.esri.com/
+
+  - id: osm_standard
+    name: OpenStreetMap 标准图
+    type: xyz
+    url_template: https://tile.openstreetmap.org/{z}/{x}/{y}.png
+    resolution: 矢量渲染
+    license: ODbL 1.0
+    license_note: OSM 数据许可，官方禁止批量下载
+    requires_key: false
+    enabled_by_default: false
+    verified_clean_license: true
+    min_zoom: 0
+    max_zoom: 19
+    layer: imagery
+    availability: public
+    homepage: https://www.openstreetmap.org/
+
+  - id: nasa_blue
+    name: NASA Blue Marble (全球)
+    type: xyz
+    url_template: https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief_Bathymetry/default/500m/{z}/{y}/{x}.jpeg
+    resolution: 500m
+    license: Public Domain (NASA)
+    license_note: 全球底图，分辨率较低，适合宏观展示
+    requires_key: false
+    enabled_by_default: true
+    verified_clean_license: true
+    min_zoom: 0
+    max_zoom: 8
+    layer: imagery
+    availability: public
+    homepage: https://www.earthdata.nasa.gov/
+
+  - id: usgs_natmap
+    name: USGS National Map 影像
+    type: xyz
+    url_template: https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}
+    resolution: 1m-30cm (美国)
+    license: Public Domain (US Gov)
+    license_note: 仅覆盖美国及其属地
+    requires_key: false
+    enabled_by_default: true
+    verified_clean_license: true
+    min_zoom: 0
+    max_zoom: 16
+    layer: imagery
+    availability: public
+    homepage: https://basemap.nationalmap.gov/
+
+  - id: carto_pur
+    name: CartoDB Positron (矢量)
+    type: xyz
+    url_template: https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png
+    resolution: 矢量
+    license: CC-BY 4.0
+    license_note: 浅色矢量底图
+    requires_key: false
+    enabled_by_default: false
+    verified_clean_license: true
+    min_zoom: 0
+    max_zoom: 18
+    layer: imagery
+    availability: public
+    homepage: https://carto.com/
+
+  - id: stamen_terr
+    name: Stamen Terrain
+    type: xyz
+    url_template: https://stamen-tiles-{s}.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png
+    resolution: 矢量地形
+    license: CC-BY 3.0
+    license_note: 教育友好
+    requires_key: false
+    enabled_by_default: false
+    verified_clean_license: true
+    min_zoom: 3
+    max_zoom: 18
+    layer: imagery
+    availability: public
+    homepage: https://stamen.com/
+
+  - id: tiantu_img
+    name: 天地图 影像底图
+    type: wmts
+    url_template: https://t0.tianditu.gov.cn/img_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=img&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=YOUR_KEY
+    resolution: 0.5m-18 级
+    license: 天地图服务条款
+    license_note: 免费但需要 Key（免费申请）
+    requires_key: true
+    enabled_by_default: false
+    verified_clean_license: false
+    min_zoom: 1
+    max_zoom: 18
+    layer: imagery
+    availability: service
+    homepage: https://www.tianditu.gov.cn/
+
+  - id: tiantu_cva
+    name: 天地图 影像注记
+    type: wmts
+    url_template: https://t0.tianditu.gov.cn/cia_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=cia&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=YOUR_KEY
+    resolution: 注记层
+    license: 天地图服务条款
+    license_note: 与 img_w 共用 Key
+    requires_key: true
+    enabled_by_default: false
+    verified_clean_license: false
+    min_zoom: 1
+    max_zoom: 18
+    layer: label
+    availability: service
+    homepage: https://www.tianditu.gov.cn/
