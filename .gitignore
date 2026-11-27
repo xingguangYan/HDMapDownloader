@@ -1,0 +1,36 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# Build artifacts
+**/*.exe
+!HDMapDownloader.exe
+**/*.dll
+**/*.obj
+**/*.pdb
+**/*.lib
+**/*.xls
+**/*.cache
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+HDMapDownloader.c6
+outdir/
+drive_export/
+mapdl_cache/
+hdmap_cache/
+exports/
+qr_base64.txt

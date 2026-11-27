@@ -1,0 +1,211 @@
+version: 3
+note: >-
+  HDMapDownloader v3.0 数据源清单。所有免Key源已经过连通性实测（2026-11）。
+sources:
+  - id: esri_world
+    name: Esri 世界影像（高清卫星）
+    type: xyz
+    url_template: https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}
+    resolution: 0.3-1m
+    license: Esri 服务条款
+    license_note: 全球高清影像，免 Key，实测可用。商用请遵守 Esri 条款。
+    requires_key: false
+    enabled_by_default: true
+    verified_clean_license: false
+    min_zoom: 0
+    max_zoom: 19
+    layer: imagery
+    availability: tested
+    homepage: https://www.esri.com/
+
+  - id: osm_de
+    name: OpenStreetMap 矢量（de 镜像）
+    type: xyz
+    url_template: https://tile.openstreetmap.de/{z}/{x}/{y}.png
+    resolution: 矢量
+    license: ODbL 1.0
+    license_note: 官方 tile.openstreetmap.org 在国内被限流，改用 OSM.de 镜像，实测可用。
+    requires_key: false
+    enabled_by_default: true
+    verified_clean_license: true
+    min_zoom: 0
+    max_zoom: 19
+    layer: imagery
+    availability: tested
+    homepage: https://www.openstreetmap.org/
+
+  - id: carto_light
+    name: CartoDB 浅色矢量
+    type: xyz
+    url_template: https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png
+    resolution: 矢量
+    license: CC-BY 4.0
+    license_note: a 子域名不通，使用 b/c/d 子域名，实测可用。
+    requires_key: false
+    enabled_by_default: true
+    verified_clean_license: true
+    min_zoom: 0
+    max_zoom: 18
+    layer: imagery
+    availability: tested
+    homepage: https://carto.com/
+
+  - id: eox_s2
+    name: Sentinel-2 无云镶嵌（2020 全球）
+    type: xyz
+    url_template: https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2020_3857/default/GoogleMapsCompatible/{z}/{y}/{x}.jpg
+    resolution: 10m
+    license: CC-BY-NC 4.0
+    license_note: EOX 提供的 Sentinel-2 无云镶嵌，免 Key，实测可用。
+    requires_key: false
+    enabled_by_default: true
+    verified_clean_license: false
+    min_zoom: 0
+    max_zoom: 18
+    layer: imagery
+    availability: tested
+    homepage: https://s2maps.eu/
+
+  - id: nasa_bm
+    name: NASA Blue Marble 全球底图
+    type: wms
+    url_template: https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wmts
+    resolution: 500m
+    license: NASA 公有领域
+    license_note: WMTS 端点级别不从0开始会黑屏，改用 WMS 端点，实测可用。
+    requires_key: false
+    enabled_by_default: true
+    verified_clean_license: true
+    min_zoom: 0
+    max_zoom: 8
+    layer: imagery
+    availability: tested
+    homepage: https://www.earthdata.nasa.gov/
+
+  - id: modis_terra
+    name: MODIS Terra 真彩色（每日）
+    type: wms
+    url_template: https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wmts
+    resolution: 250m
+    license: NASA 公有领域
+    license_note: GIBS WMS，支持时间参数，实测可用。
+    requires_key: false
+    enabled_by_default: true
+    verified_clean_license: true
+    min_zoom: 0
+    max_zoom: 9
+    layer: imagery
+    availability: tested
+    homepage: https://www.earthdata.nasa.gov/
+
+  - id: hls_l30
+    name: Landsat 8/9 影像（HLS L30）
+    type: wms
+    url_template: https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wmts
+    resolution: 30m
+    license: NASA 公有领域
+    license_note: GIBS WMS HLS_L30_Nadir_BRDF_Adjusted_Reflectance，实测可用。
+    requires_key: false
+    enabled_by_default: true
+    verified_clean_license: true
+    min_zoom: 0
+    max_zoom: 13
+    layer: imagery
+    availability: tested
+    homepage: https://www.earthdata.nasa.gov/
+
+  - id: hls_s30
+    name: Sentinel-2 影像（HLS S30）
+    type: wms
+    url_template: https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wmts
+    resolution: 30m
+    license: NASA 公有领域
+    license_note: GIBS WMS HLS_S30_Nadir_BRDF_Adjusted_Reflectance，实测可用。
+    requires_key: false
+    enabled_by_default: true
+    verified_clean_license: true
+    min_zoom: 0
+    max_zoom: 13
+    layer: imagery
+    availability: tested
+    homepage: https://www.earthdata.nasa.gov/
+
+  - id: tianditu_img
+    name: 天地图影像（img_w）
+    type: wmts
+    url_template: https://t0.tianditu.gov.cn/img_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=img&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=YOUR_KEY
+    resolution: 0.5m
+    license: 天地图服务条款
+    license_note: 免费，必须申请 tk（lbs.tianditu.gov.cn），在软件内填入后启用。
+    requires_key: true
+    enabled_by_default: false
+    verified_clean_license: false
+    min_zoom: 1
+    max_zoom: 18
+    layer: imagery
+    availability: service
+    homepage: https://www.tianditu.gov.cn/
+
+  - id: geovis
+    name: 中科星图 · 星图地球
+    type: api
+    url_template: https://daily.geovisearth.com/
+    resolution: 0.5-10m
+    license: 平台条款
+    license_note: 需注册，10m 全球 / 0.8m 中国。
+    requires_key: true
+    enabled_by_default: false
+    verified_clean_license: false
+    min_zoom: 0
+    max_zoom: 0
+    layer: api
+    availability: registration
+    homepage: https://daily.geovisearth.com/
+
+  - id: jl1
+    name: 长光卫星 · 吉林一号
+    type: api
+    url_template: https://www.jl1.cn/
+    resolution: 0.5m
+    license: 活动条款
+    license_note: 需注册，活动期限量免费。
+    requires_key: true
+    enabled_by_default: false
+    verified_clean_license: false
+    min_zoom: 0
+    max_zoom: 0
+    layer: api
+    availability: registration
+    homepage: https://www.jl1.cn/
+
+  - id: cresda
+    name: 中国资源卫星应用中心
+    type: api
+    url_template: https://data.cresda.cn/
+    resolution: 高分系列
+    license: 科研公益
+    license_note: 科研与公益免费，需注册审批。
+    requires_key: true
+    enabled_by_default: false
+    verified_clean_license: false
+    min_zoom: 0
+    max_zoom: 0
+    layer: api
+    availability: registration
+    homepage: https://data.cresda.cn/
+
+  - id: copernicus
+    name: Copernicus 数据空间
+    type: api
+    url_template: https://dataspace.copernicus.eu/
+    resolution: 10-60m
+    license: Copernicus 开放
+    license_note: Sentinel 全系，注册免费。
+    requires_key: true
+    enabled_by_default: false
+    verified_clean_license: false
+    min_zoom: 0
+    max_zoom: 0
+    layer: api
+    availability: registration
+    homepage: https://dataspace.copernicus.eu/
