@@ -1,70 +1,37 @@
-
 #!/usr/bin/env python3
-# HD Map Downloader - Web Service
+"""
+HD Map Downloader - ModelScope Web 服务
+直接提供完整单页应用（二维码已 base64 内嵌于 web.html）
+"""
 import os
-from flask import Flask, render_template, jsonify, send_from_directory
+from flask import Flask, send_from_directory, jsonify
 
-app = Flask(__name__, static_folder='static', template_folder='templates')
-
-# Paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DONATION_QR_PATH = r"C:/Users/Administrator/Pictures/Saved Pictures/收款码1.png"
+app = Flask(__name__, static_folder=None)
+WEB_HTML = os.path.join(BASE_DIR, "web.html")
 
-# Mock data sources
-DATA_SOURCES = [
-    {"name": "Esri World Imagery", "type": "XYZ", "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer"},
-    {"name": "OpenStreetMap", "type": "XYZ", "url": "https://tile.openstreetmap.org"},
-    {"name": "天地图影像", "type": "WMTS", "url": "https://t0.tianditu.gov.cn/img_w/wmts"},
-    {"name": "NASA Blue Marble", "type": "XYZ", "url": "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief_Bathymetry/default/500m"},
-    {"name": "USGS National Map", "type": "XYZ", "url": "https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer"},
-]
-
-@app.route('/')
+@app.route("/")
 def index():
-    return render_template('index.html')
+    if os.path.exists(WEB_HTML):
+        return send_from_directory(BASE_DIR, "web.html")
+    return "web.html not found", 404
 
-@app.route('/api/data-sources')
-def get_data_sources():
+@app.route("/api/sources")
+def sources():
     return jsonify({
-        "success": True,
-        "count": len(DATA_SOURCES),
-        "sources": DATA_SOURCES
+        "sources": [
+            {"id": "esri", "name": "Esri World Imagery", "max": 19},
+            {"id": "osm", "name": "OpenStreetMap", "max": 19},
+            {"id": "nasa", "name": "NASA Blue Marble", "max": 8},
+            {"id": "usgs", "name": "USGS National Map", "max": 16},
+            {"id": "tianditu", "name": "天地图影像", "max": 18}
+        ]
     })
 
-@app.route('/api/donation')
-def donation():
-    if os.path.exists(DONATION_QR_PATH):
-        return jsonify({"found": True, "path": DONATION_QR_PATH})
-    return jsonify({"found": False})
+@app.route("/health")
+def health():
+    return jsonify({"status": "ok", "version": "2.0.0"})
 
-@app.route('/api/about')
-def about():
-    return jsonify({
-        "name": "HD Map Downloader",
-        "version": "2.0.0",
-        "description": "Multi-source tile map downloader with web interface",
-        "features": ["Web interface", "Database caching", "Incremental sync", "Multiple sources", "Donation QR"]
-    })
-
-@app.route('/api/status')
-def status():
-    return jsonify({"status": "running", "uptime": "OK"})
-
-@app.route('/static/<path:filename>')
-def static_files(filename):
-    return send_from_directory(app.static_folder, filename)
-
-@app.route('/qr/<filename>')
-def qr_files(filename):
-    if os.path.exists(DONATION_QR_PATH):
-        return send_from_directory(os.path.dirname(DONATION_QR_PATH), filename)
-    return f"Not found: {filename}", 404
-
-if __name__ == '__main__':
-    print("=" * 50)
-    print("HD Map Downloader v2.0.0")
-    print("=" * 50)
-    print(f"Data sources: {len(DATA_SOURCES)}")
-    print(f"Donation QR: {DONATION_QR_PATH}")
-    print("=" * 50)
-    app.run(host='0.0.0.0', port=5000, debug=True)
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
