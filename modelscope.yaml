@@ -1,0 +1,6 @@
+# ModelScope deployment for HDMapDownloader
+# This file will be used to deploy the web app on ModelScope platform
+
+app_name: "HDMapDownloader"
+version: "2.0.0"
+port: 5000
