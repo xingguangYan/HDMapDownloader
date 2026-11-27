@@ -20,11 +20,19 @@ def index():
 def sources():
     return jsonify({
         "sources": [
-            {"id": "esri", "name": "Esri World Imagery", "max": 19},
-            {"id": "osm", "name": "OpenStreetMap", "max": 19},
-            {"id": "nasa", "name": "NASA Blue Marble", "max": 8},
-            {"id": "usgs", "name": "USGS National Map", "max": 16},
-            {"id": "tianditu", "name": "天地图影像", "max": 18}
+            {"id": "esri", "name": "Esri 世界影像", "max": 19, "key": False},
+            {"id": "osm", "name": "OpenStreetMap (de 镜像)", "max": 19, "key": False},
+            {"id": "carto_light", "name": "CartoDB 浅色矢量", "max": 18, "key": False},
+            {"id": "carto_dark", "name": "CartoDB 深色矢量", "max": 18, "key": False},
+            {"id": "eox_s2", "name": "Sentinel-2 无云镶嵌", "max": 18, "key": False},
+            {"id": "nasa_bm", "name": "NASA Blue Marble", "max": 8, "key": False},
+            {"id": "modis", "name": "MODIS Terra (每日)", "max": 9, "key": False, "time": True},
+            {"id": "aqua", "name": "MODIS Aqua (每日)", "max": 9, "key": False, "time": True},
+            {"id": "viirs", "name": "VIIRS SNPP (每日)", "max": 9, "key": False, "time": True},
+            {"id": "hls_l", "name": "Landsat 8/9 (HLS L30)", "max": 13, "key": False, "time": True},
+            {"id": "hls_s", "name": "Sentinel-2 (HLS S30)", "max": 13, "key": False, "time": True},
+            {"id": "tianditu", "name": "天地图影像 img_w", "max": 18, "key": True},
+            {"id": "planet", "name": "Planet NICFI 月度镶嵌", "max": 18, "key": True},
         ]
     })
 
