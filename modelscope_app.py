@@ -1,48 +1,23 @@
+
 #!/usr/bin/env python3
-"""
-HD Map Downloader - Web Interface for ModelScope
-"""
+# HD Map Downloader - Web Service
 import os
-from flask import Flask, render_template, request, jsonify, send_from_directory, send_file
-from flask_cors import CORS
-import yaml
+from flask import Flask, render_template, jsonify, send_from_directory
 
-app = Flask(__name__, static_folder='static')
-CORS(app)
+app = Flask(__name__, static_folder='static', template_folder='templates')
 
-# Configuration
+# Paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_SOURCES_PATH = os.path.join(BASE_DIR, 'data-sources.yaml')
 DONATION_QR_PATH = r"C:/Users/Administrator/Pictures/Saved Pictures/收款码1.png"
 
-# Ensure static directory exists
-os.makedirs(os.path.join(BASE_DIR, 'static'), exist_ok=True)
-
-# Create placeholder QR image
-qr_placeholder = r"""
-<!DOCTYPE html>
-<html><body style="display:flex;align-items:center;justify-content:center;height:100vh;background:#f0f0f0;">
-<h2 style="color:#666;">收款码图片</h2>
-</body></html>
-"""
-with open(os.path.join(BASE_DIR, 'static', 'qr_placeholder.png'), 'w') as f:
-    f.write(qr_placeholder)
-
-# Load data sources
-def load_data_sources():
-    try:
-        with open(DATA_SOURCES_PATH, 'r', encoding='utf-8') as f:
-            data = yaml.safe_load(f)
-            return [{"name": s["name"], "type": s["type"], "url": s.get("url_template", "")} for s in data.get("sources", [])]
-    except Exception as e:
-        return [
-            {"name": "Esri World Imagery", "type": "xyz", "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"},
-            {"name": "OpenStreetMap", "type": "xyz", "url": "https://tile.openstreetmap.org/{z}/{x}/{y}.png"},
-            {"name": "天地图影像", "type": "wmts", "url": "https://t0.tianditu.gov.cn/img_w/wmts"},
-            {"name": "NASA Blue Marble", "type": "xyz", "url": "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief_Bathymetry/default/500m/{z}/{y}/{x}.jpeg"},
-        ]
-
-DATA_SOURCES = load_data_sources()
+# Mock data sources
+DATA_SOURCES = [
+    {"name": "Esri World Imagery", "type": "XYZ", "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer"},
+    {"name": "OpenStreetMap", "type": "XYZ", "url": "https://tile.openstreetmap.org"},
+    {"name": "天地图影像", "type": "WMTS", "url": "https://t0.tianditu.gov.cn/img_w/wmts"},
+    {"name": "NASA Blue Marble", "type": "XYZ", "url": "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief_Bathymetry/default/500m"},
+    {"name": "USGS National Map", "type": "XYZ", "url": "https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer"},
+]
 
 @app.route('/')
 def index():
@@ -51,46 +26,45 @@ def index():
 @app.route('/api/data-sources')
 def get_data_sources():
     return jsonify({
-        "sources": DATA_SOURCES,
-        "total": len(DATA_SOURCES)
+        "success": True,
+        "count": len(DATA_SOURCES),
+        "sources": DATA_SOURCES
     })
 
-@app.route('/api/donation-qr')
-def get_donation():
-    """Return donation QR code filename"""
+@app.route('/api/donation')
+def donation():
     if os.path.exists(DONATION_QR_PATH):
-        return jsonify({
-            "qr_found": True,
-            "qr_path": os.path.basename(DONATION_QR_PATH)
-        })
-    return jsonify({"qr_found": False})
+        return jsonify({"found": True, "path": DONATION_QR_PATH})
+    return jsonify({"found": False})
+
+@app.route('/api/about')
+def about():
+    return jsonify({
+        "name": "HD Map Downloader",
+        "version": "2.0.0",
+        "description": "Multi-source tile map downloader with web interface",
+        "features": ["Web interface", "Database caching", "Incremental sync", "Multiple sources", "Donation QR"]
+    })
+
+@app.route('/api/status')
+def status():
+    return jsonify({"status": "running", "uptime": "OK"})
 
 @app.route('/static/<path:filename>')
-def serve_static(filename):
+def static_files(filename):
     return send_from_directory(app.static_folder, filename)
 
-@app.route('/qr/<path:filename>')
-def serve_qr(filename):
-    """Serve donation QR code"""
+@app.route('/qr/<filename>')
+def qr_files(filename):
     if os.path.exists(DONATION_QR_PATH):
-        return send_file(DONATION_QR_PATH)
-    return f"QR code not found: {filename}", 404
-
-@app.route('/api/download', methods=['POST'])
-def download():
-    """Handle download request"""
-    data = request.json or {}
-    print(f"Download request: {data}")
-    return jsonify({
-        "status": "success",
-        "message": "Download started",
-        "jobs": data.get("jobs", 0),
-        "source": data.get("source", "unknown")
-    })
+        return send_from_directory(os.path.dirname(DONATION_QR_PATH), filename)
+    return f"Not found: {filename}", 404
 
 if __name__ == '__main__':
-    print("Starting HD Map Downloader Web...")
+    print("=" * 50)
+    print("HD Map Downloader v2.0.0")
+    print("=" * 50)
     print(f"Data sources: {len(DATA_SOURCES)}")
-    print(f"QR code path: {DONATION_QR_PATH}")
-    print("Access at: http://localhost:5000")
-    app.run(debug=True, port=5000, host='0.0.0.0')
+    print(f"Donation QR: {DONATION_QR_PATH}")
+    print("=" * 50)
+    app.run(host='0.0.0.0', port=5000, debug=True)

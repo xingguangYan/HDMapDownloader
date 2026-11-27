@@ -1,84 +1,76 @@
-# HD Map Downloader v2.0
+# HD Map Downloader v2.0.0
 
-## 简介 / Introduction
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub release](https://img.shields.io/github/v/release/xingguangYan/HDMapDownloader)](https://github.com/xingguangYan/HDMapDownloader/releases)
+[![GitHub stars](https://img.shields.io/github/stars/xingguangYan/HDMapDownloader?style=social)](https://github.com/xingguangYan/HDMapDownloader/stargazers)
 
-一个功能强大的高清地图下载工具，整合了全球20多个免费地图源，支持多格式导出。
+## 🚀 功能特性
 
-An powerful HD map downloader supporting 20+ free global tile sources.
+- 🗺️ **多源支持**: 谷歌、天地图、高德、Esri、OSM、NASA、USGS
+- ✅ **Web 界面**: 浏览器直接访问，无需安装
+- 💾 **数据库缓存**: SQLite/Redis 支持 (预留)
+- ⚡ **增量同步**: 只下载缺失的瓦片
+- 🌟 **星空图层**: 天地图星空图和观景台
+- 🎨 **用户友好**: 完全中文界面操作
 
-## 功能特性 / Features
+## 📦 快速开始
 
-- 多数据源支持：谷歌、天地图、高德、百度、Esri、OSM、NASA等
-- 精确选择区域：矩形、多边形选区
-- 并发下载：可配置线程数，支持断点续传
-- 导出格式：GeoTIFF、MBTiles
-- 坐标系统：支持 WGS84、Web Mercator、CGCS2000
-- 中文界面 + 打赏模块
-
-## 安装 / Installation
-
-### 从源码构建 / Build from Source
+### 1. 本地桌面版
 
 ```bash
+cd D:\探索\HDMapDownloader
 cargo build --release
 ```
 
-### 使用 Docker / Using Docker
+### 2. Web 服务版
+
+```bash
+cd D:\探索\HDMapDownloader
+pip install -r requirements.txt
+python modelscope_app.py
+```
+
+访问 http://localhost:5000
+
+### 3. Docker 部署
 
 ```bash
 docker build -t hdmapdl .
-docker run -it --rm hdmapdl
+docker run -p 5000:5000 hdmapdl
 ```
 
-## 使用方法 / Usage
+## 🎯 核心功能
 
-```bash
-./hdmapdl
-```
+### 数据源
+- Esri World Imagery - 全球高清影像
+- OpenStreetMap - 矢量地图
+- 天地图影像 - 国内高精度
+- NASA Blue Marble - 卫星图
+- USGS National Map - 美国地形
+- 天地图星空 - 星空图层
 
-启动后选择地图层，框选区域，调整下载级别，点击"开始下载"。
+### 导出格式
+- GeoTIFF (带坐标信息)
+- MBTiles (标准离线包)
 
-## 数据源 / Sources
+### 坐标系统
+- WGS84 (EPSG:4326)
+- Web Mercator (EPSG:3857)
+- CGCS2000
 
-完整的开源数据源配置位于 `data-sources.yaml`，包括：
+## ☕ 打赏支持
 
-- Google Maps (卫星/地形，可能受地理限制)
-- Esri World Imagery (全球高清影像)
-- OpenStreetMap (矢量)
-- NASA Blue Marble (全球底图)
-- USGS National Map (美国)
-- 天地图 (需 Key，精度高)
-- 高德/百度/腾讯 (国内)
-- 以及更多免费源
+请作者喝一杯咖啡 ☕ 爬虫二维码在软件内
 
-## 编译依赖 / Build Dependencies
+## 📄 许可证
 
-- Rust 1.56+
-- 可选：CMake (用于部分 rust crate)
-- 可选：Windows SDK / MSYS2 / MinGW
+MIT License - 自由使用，商业用途请询问
 
-## 授权 / License
+## 🔗 链接
 
-MIT License
+- [GitHub](https://github.com/xingguangYan/HDMapDownloader)
+- [GitCode](https://gitcode.com/xingguangYan/HDMapDownloader)
+- [ModelScope](https://modelscope.cn/)
 
-## 打赏 / Donate
-
-本工具完全免费，完全由个人开发。如果您觉得有帮助，欢迎打赏支持：
-
-请使用软件内的"显示收款码"功能。
-
-## 贡献 / Contributing
-
-欢迎提交 Issue 和 Pull Request。
-
-## 注意 / Notes
-
-- 部分数据源需要联网，请遵守各数据源的使用条款
-- 不可用于商业用途或违反相关法律法规
-- 下载的数据仅供参考，使用请自行评估
-
---- ="-" 
-
-# HD Map Downloader v2.0
-
-[Setup instructions for Windows / macOS / Linux], [Troubleshooting], [Roadmap], [Changelog]
+---
+*Made with ❤️ for the geospatial community*
