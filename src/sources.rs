@@ -58,6 +58,29 @@ impl SourceEntry {
     }
 }
 
+/// 用户「登录后接入」的自定义瓦片源（v4.0）
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct CustomSource {
+    pub id: String,
+    pub name: String,
+    pub group: String,
+    /// 含 {z}/{x}/{y}，可选 {key} / {s}
+    pub url_template: String,
+    pub max_zoom: u8,
+    pub requires_key: bool,
+    pub note: String,
+}
+
+impl CustomSource {
+    pub fn tile_url(&self, z: u8, x: i32, y: i32, key: &str) -> String {
+        self.url_template
+            .replace("{z}", &z.to_string())
+            .replace("{x}", &x.to_string())
+            .replace("{y}", &y.to_string())
+            .replace("{key}", key)
+            .replace("{s}", "1")
+    }
+}
 const GIBS_WMS: &str = "https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi";
 
 pub fn catalog() -> Vec<SourceEntry> {
@@ -77,6 +100,30 @@ pub fn catalog() -> Vec<SourceEntry> {
             license: "ODbL 1.0", note: "官方 tile.openstreetmap.org 国内被限流，改用 OSM.de 镜像，实测可用。",
             homepage: "https://www.openstreetmap.org/",
             url_template: "https://tile.openstreetmap.de/{z}/{x}/{y}.png",
+            wms_endpoint: "", wms_layers: "",
+        },
+        SourceEntry {
+            id: "google_sat", name: "谷歌卫星影像", group: "基础底图",
+            kind: SourceKind::Xyz, max_zoom: 20, requires_key: false, time_support: false,
+            license: "Google 服务条款", note: "免Key瓦片（lyrs=s）。正式商用请遵守 Google 条款，仅供学习测试。",
+            homepage: "https://maps.google.com/",
+            url_template: "https://mt0.google.cn/vt/lyrs=s&gl=cn&x={x}&y={y}&z={z}",
+            wms_endpoint: "", wms_layers: "",
+        },
+        SourceEntry {
+            id: "amap_sat", name: "高德卫星影像", group: "基础底图",
+            kind: SourceKind::Xyz, max_zoom: 18, requires_key: false, time_support: false,
+            license: "高德服务条款", note: "免Key瓦片（style=6 卫星），实测可用。",
+            homepage: "https://www.amap.com/",
+            url_template: "https://webst01.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}",
+            wms_endpoint: "", wms_layers: "",
+        },
+        SourceEntry {
+            id: "topo", name: "OpenTopoMap 地形", group: "基础底图",
+            kind: SourceKind::Xyz, max_zoom: 17, requires_key: false, time_support: false,
+            license: "CC-BY-SA 3.0", note: "免Key地形图，实测可用。",
+            homepage: "https://opentopomap.org/",
+            url_template: "https://a.tile.opentopomap.org/{z}/{x}/{y}.png",
             wms_endpoint: "", wms_layers: "",
         },
         SourceEntry {
@@ -111,6 +158,14 @@ pub fn catalog() -> Vec<SourceEntry> {
             homepage: "https://www.earthdata.nasa.gov/",
             url_template: "", wms_endpoint: GIBS_WMS,
             wms_layers: "BlueMarble_ShadedRelief_Bathymetry",
+        },
+        SourceEntry {
+            id: "nasa_bmng", name: "NASA Blue Marble 下一代（月度）", group: "卫星影像",
+            kind: SourceKind::Wms, max_zoom: 8, requires_key: false, time_support: false,
+            license: "NASA 公有领域", note: "GIBS WMS BlueMarble_NextGeneration，免Key，实测可用。",
+            homepage: "https://www.earthdata.nasa.gov/",
+            url_template: "", wms_endpoint: GIBS_WMS,
+            wms_layers: "BlueMarble_NextGeneration",
         },
         // ---------- 时间序列（GIBS WMS，免Key，按日期加载） ----------
         SourceEntry {
@@ -208,7 +263,7 @@ mod tests {
     #[test]
     fn catalog_has_free_sources() {
         let c = catalog();
-        assert!(c.len() >= 15);
+        assert!(c.len() >= 20);
         assert!(c.iter().any(|s| s.id == "esri" && !s.requires_key));
         assert!(c.iter().any(|s| s.id == "hls_l" && s.time_support));
     }

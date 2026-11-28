@@ -1,6 +1,6 @@
 [package]
 name = "hdmapdl"
-version = "3.0.0"
+version = "4.0.0"
 authors = ["xingguangYan"]
 edition = "2021"
 license = "MIT"
@@ -13,10 +13,11 @@ eframe = { version = "0.31", default-features = true, features = ["glow"] }
 egui = "0.31"
 
 # HTTP
-ureq = "2.10"
+ureq = { version = "2.10", features = ["json"] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 
 # Image processing
 image = "0.25"

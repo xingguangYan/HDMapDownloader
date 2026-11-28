@@ -1,13 +1,17 @@
-//! HD 高清地图下载器 v3.0 —— 桌面端入口
+//! HD 高清地图下载器 v4.0 —— 桌面端入口
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod adm;
+mod ai;
 mod app;
 mod donate;
 mod download;
 mod export;
 mod geo;
+mod i18n;
 mod mapview;
 mod sources;
+mod stac;
 mod ui;
 
 use eframe::egui;
@@ -70,7 +74,7 @@ fn main() -> eframe::Result<()> {
     };
 
     eframe::run_native(
-        "HD 高清地图下载器 v3.0",
+        "HD 高清地图下载器 v4.0",
         options,
         Box::new(move |cc| {
             install_fonts(&cc.egui_ctx);
